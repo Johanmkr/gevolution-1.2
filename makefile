@@ -1,6 +1,6 @@
 # programming environment
 COMPILER     := mpic++
-INCLUDE      := # add the path to LATfield2 and other libraries (if necessary)
+INCLUDE      := -I /home/johan/Documents/div/LATfield2/
 LIB          := -lfftw3 -lm -lhdf5 -lgsl -lgslcblas
 HPXCXXLIB    := -lhealpix_cxx -lcfitsio
 
@@ -13,7 +13,7 @@ HEADERS      := $(wildcard *.hpp)
 DLATFIELD2   := -DFFT3D -DHDF5
 
 # optional compiler settings (LATfield2)
-#DLATFIELD2   += -DH5_HAVE_PARALLEL
+DLATFIELD2   += -DH5_HAVE_PARALLEL
 #DLATFIELD2   += -DEXTERNAL_IO # enables I/O server (use with care)
 #DLATFIELD2   += -DSINGLE      # switches to single precision, use LIB -lfftw3f
 
