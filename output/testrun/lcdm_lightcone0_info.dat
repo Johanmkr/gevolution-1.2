@@ -1,0 +1,22 @@
+# information file for lightcone 0
+# geometric parameters:
+# vertex = (0.000000, 0.000000, 0.000000) Mpc/h
+# redshift = 0.000000
+# distance = (100.000000 - 0.000000) Mpc/h
+# opening half-angle = 180.000000 degrees
+# direction = (0.577350, 0.577350, 0.577350)
+# cycle   tau/boxsize    a              pcl_inner        pcl_outer        metric_inner     metric_outer
+   115   2.942546e+01   9.508117e-01   0.286511950436   0.674567547101   0.078270435350   0.886719595068
+   116   2.980990e+01   9.900124e-01   -0.094074842738   0.286511950436   -0.298135686925   0.494753465522
+   117   3.018663e+01   1.030863e+00   -0.466723484570   -0.094074842738   -0.666365335702   0.109986001448
+# information file for lightcone 0
+# geometric parameters:
+# vertex = (0.000000, 0.000000, 0.000000) Mpc/h
+# redshift = 0.000000
+# distance = (100.000000 - 0.000000) Mpc/h
+# opening half-angle = 180.000000 degrees
+# direction = (0.577350, 0.577350, 0.577350)
+# cycle   tau/boxsize    a              pcl_inner        pcl_outer        metric_inner     metric_outer
+   115   2.942546e+01   9.508117e-01   0.286511950436   0.674567547101   0.078270435350   0.886719595068
+   116   2.980990e+01   9.900124e-01   -0.094074842738   0.286511950436   -0.298135686925   0.494753465522
+   117   3.018663e+01   1.030863e+00   -0.466723484570   -0.094074842738   -0.666365335702   0.109986001448
