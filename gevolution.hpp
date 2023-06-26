@@ -20,7 +20,7 @@
 //
 // Author: Julian Adamek (Université de Genève & Observatoire de Paris & Queen Mary University of London & Universität Zürich)
 //
-// Last modified: August 2022
+// Last modified: June 2023
 //
 //////////////////////////
 
@@ -181,13 +181,27 @@ void prepareFTsource(Field<FieldType> & phi, Field<FieldType> & chi, Field<Field
 		result(x) -= 0.375 * (phi(x-1) - phi(x+1)) * (phi(x-1) - phi(x+1));
 		result(x) -= 0.375 * (phi(x-2) - phi(x+2)) * (phi(x-2) - phi(x+2));
 #else
-		result(x) *= 1. - 2. * phi(x);
+		result(x) *= 1. - 2. * phi(x) * (1. - phi(x));
 		result(x) += 0.125 * (phi(x-0) - phi(x+0)) * (phi(x-0) - phi(x+0));
 		result(x) += 0.125 * (phi(x-1) - phi(x+1)) * (phi(x-1) - phi(x+1));
 		result(x) += 0.125 * (phi(x-2) - phi(x+2)) * (phi(x-2) - phi(x+2));
 #endif
 #endif
-		result(x) += (coeff3 - coeff) * phi(x) - coeff3 * chi(x);
+		result(x) += (coeff3 * (1. - 2. * phi(x)) - coeff) * phi(x) - coeff3 * chi(x);
+	}
+}
+
+
+template <class FieldType>
+void prepareFTsource(Field<FieldType> & T0i, Field<FieldType> & phi, const double coeff)
+{
+	Site x(phi.lattice());
+	
+	for (x.first(); x.test(); x.next())
+	{
+		T0i(x,0) -= 0.5 * (phi(x) + phi(x+0)) * (T0i(x,0) /*+ coeff * (phi(x+0) - phi(x))*/);
+		T0i(x,1) -= 0.5 * (phi(x) + phi(x+1)) * (T0i(x,1) /*+ coeff * (phi(x+1) - phi(x))*/);
+		T0i(x,2) -= 0.5 * (phi(x) + phi(x+2)) * (T0i(x,2) /*+ coeff * (phi(x+2) - phi(x))*/);
 	}
 }
 
@@ -580,6 +594,18 @@ Real update_q(double dtau, double dx, part_simple * part, double * ref_dist, par
 	Real pgradB[3]={0,0,0};
 	Real v2 = (*part).vel[0] * (*part).vel[0] + (*part).vel[1] * (*part).vel[1] + (*part).vel[2] * (*part).vel[2];
 	Real e2 = v2 + params[0] * params[0];
+	
+	Real phiint = (1.-ref_dist[0]) * (1.-ref_dist[1]) * (1.-ref_dist[2]) * phi(xphi);
+	phiint += ref_dist[0] * (1.-ref_dist[1]) * (1.-ref_dist[2]) * phi(xphi+0);
+	phiint += (1.-ref_dist[0]) * ref_dist[1] * (1.-ref_dist[2]) * phi(xphi+1);
+	phiint += ref_dist[0] * ref_dist[1] * (1.-ref_dist[2]) * phi(xphi+1+0);
+	phiint += (1.-ref_dist[0]) * (1.-ref_dist[1]) * ref_dist[2] * phi(xphi+2);
+	phiint += ref_dist[0] * (1.-ref_dist[1]) * ref_dist[2] * phi(xphi+2+0);
+	phiint += (1.-ref_dist[0]) * ref_dist[1] * ref_dist[2] * phi(xphi+2+1);
+	phiint += ref_dist[0] * ref_dist[1] * ref_dist[2] * phi(xphi+2+1+0);
+	
+	phiint /= e2;
+	phiint = 4. * phiint * v2 + (1. + params[0] * params[0] * phiint) * (v2 + e2) / e2;
 
 #if GRADIENT_ORDER == 1	
 	gradphi[0] = (1.-ref_dist[1]) * (1.-ref_dist[2]) * (phi(xphi+0) - phi(xphi));
@@ -610,9 +636,9 @@ Real update_q(double dtau, double dx, part_simple * part, double * ref_dist, par
 #error GRADIENT_ORDER must be set to 1 or 2
 #endif
 
-	gradphi[0] *= (v2 + e2) / e2;
-	gradphi[1] *= (v2 + e2) / e2;
-	gradphi[2] *= (v2 + e2) / e2;
+	gradphi[0] *= phiint;
+	gradphi[1] *= phiint;
+	gradphi[2] *= phiint;
 	
 	if (nfield>=2 && fields[1] != NULL)
 	{
@@ -935,7 +961,7 @@ void projection_T00_project(Particles<part, part_info, part_dataType> * pcls, Fi
 	Site xPart(pcls->lattice());
 	Site xField(T00->lattice());
 	
-	typename std::list<part>::iterator it;
+	//typename std::list<part>::iterator it;
 	
 	Real referPos[3];
 	Real weightScalarGridUp[3];
@@ -946,7 +972,7 @@ void projection_T00_project(Particles<part, part_info, part_dataType> * pcls, Fi
 	mass *= *(double*)((char*)pcls->parts_info() + pcls->mass_offset());
 	mass /= a;
 	
-	Real e = a, f = 0.;
+	Real e = a, f = 0., f2 = 0.;
 	Real * q;
 	size_t offset_q = offsetof(part,vel);
 	
@@ -957,7 +983,7 @@ void projection_T00_project(Particles<part, part_info, part_dataType> * pcls, Fi
 	   
 	for (xPart.first(),xField.first(); xPart.test(); xPart.next(),xField.next())
 	{			  
-		if (pcls->field()(xPart).size != 0)
+		if (!pcls->field()(xPart).parts.empty())
 		{
 			for(int i=0; i<3; i++) referPos[i] = xPart.coord(i)*dx;
 			for(int i=0; i<8; i++) localCube[i] = 0.0;
@@ -974,7 +1000,7 @@ void projection_T00_project(Particles<part, part_info, part_dataType> * pcls, Fi
 				localCubePhi[7] = (*phi)(xField+0+1+2);
 			}
 			
-			for (it=(pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
+			for (auto it=(pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
 			{
 				for (int i=0; i<3; i++)
 				{
@@ -986,27 +1012,28 @@ void projection_T00_project(Particles<part, part_info, part_dataType> * pcls, Fi
 				{
 					q = (Real*)((char*)&(*it)+offset_q);
 				
-					f = q[0] * q[0] + q[1] * q[1] + q[2] * q[2];
-					e = sqrt(f + a * a);
-					f = 3. * e + f / e;
+					f2 = q[0] * q[0] + q[1] * q[1] + q[2] * q[2];
+					e = sqrt(f2 + a * a);
+					f = 3. * e + f2 / e;
+					f2 = (0.5 * f * f + f2 / (1. + f2 / a / a)) / e;
 				}
 				
 				//000
-				localCube[0] += weightScalarGridDown[0]*weightScalarGridDown[1]*weightScalarGridDown[2]*(e+f*localCubePhi[0]);
+				localCube[0] += weightScalarGridDown[0]*weightScalarGridDown[1]*weightScalarGridDown[2]*(e+f*localCubePhi[0]+f2*localCubePhi[0]*localCubePhi[0]);
 				//001
-				localCube[1] += weightScalarGridDown[0]*weightScalarGridDown[1]*weightScalarGridUp[2]*(e+f*localCubePhi[1]);
+				localCube[1] += weightScalarGridDown[0]*weightScalarGridDown[1]*weightScalarGridUp[2]*(e+f*localCubePhi[1]+f2*localCubePhi[1]*localCubePhi[1]);
 				//010
-				localCube[2] += weightScalarGridDown[0]*weightScalarGridUp[1]*weightScalarGridDown[2]*(e+f*localCubePhi[2]);
+				localCube[2] += weightScalarGridDown[0]*weightScalarGridUp[1]*weightScalarGridDown[2]*(e+f*localCubePhi[2]+f2*localCubePhi[2]*localCubePhi[2]);
 				//011
-				localCube[3] += weightScalarGridDown[0]*weightScalarGridUp[1]*weightScalarGridUp[2]*(e+f*localCubePhi[3]);
+				localCube[3] += weightScalarGridDown[0]*weightScalarGridUp[1]*weightScalarGridUp[2]*(e+f*localCubePhi[3]+f2*localCubePhi[3]*localCubePhi[3]);
 				//100
-				localCube[4] += weightScalarGridUp[0]*weightScalarGridDown[1]*weightScalarGridDown[2]*(e+f*localCubePhi[4]);
+				localCube[4] += weightScalarGridUp[0]*weightScalarGridDown[1]*weightScalarGridDown[2]*(e+f*localCubePhi[4]+f2*localCubePhi[4]*localCubePhi[4]);
 				//101
-				localCube[5] += weightScalarGridUp[0]*weightScalarGridDown[1]*weightScalarGridUp[2]*(e+f*localCubePhi[5]);
+				localCube[5] += weightScalarGridUp[0]*weightScalarGridDown[1]*weightScalarGridUp[2]*(e+f*localCubePhi[5]+f2*localCubePhi[5]*localCubePhi[5]);
 				//110
-				localCube[6] += weightScalarGridUp[0]*weightScalarGridUp[1]*weightScalarGridDown[2]*(e+f*localCubePhi[6]);
+				localCube[6] += weightScalarGridUp[0]*weightScalarGridUp[1]*weightScalarGridDown[2]*(e+f*localCubePhi[6]+f2*localCubePhi[6]*localCubePhi[6]);
 				//111
-				localCube[7] += weightScalarGridUp[0]*weightScalarGridUp[1]*weightScalarGridUp[2]*(e+f*localCubePhi[7]);
+				localCube[7] += weightScalarGridUp[0]*weightScalarGridUp[1]*weightScalarGridUp[2]*(e+f*localCubePhi[7]+f2*localCubePhi[7]*localCubePhi[7]);
 			}
 			
 			(*T00)(xField)	   += localCube[0] * mass;
@@ -1054,7 +1081,7 @@ void projection_T0i_project(Particles<part,part_info,part_dataType> * pcls, Fiel
 	Site xPart(pcls->lattice());
 	Site xT0i(T0i->lattice());
     
-	typename std::list<part>::iterator it;
+	//typename std::list<part>::iterator it;
     
 	Real referPos[3];
 	Real weightScalarGridDown[3];
@@ -1075,7 +1102,7 @@ void projection_T0i_project(Particles<part,part_info,part_dataType> * pcls, Fiel
     
 	for(xPart.first(),xT0i.first();xPart.test();xPart.next(),xT0i.next())
 	{
-		if(pcls->field()(xPart).size!=0)
+		if(!pcls->field()(xPart).parts.empty())
         {
         	for(int i=0; i<3; i++)
         		referPos[i] = xPart.coord(i)*dx;
@@ -1094,7 +1121,7 @@ void projection_T0i_project(Particles<part,part_info,part_dataType> * pcls, Fiel
 				localCubePhi[7] = (*phi)(xT0i+0+1+2);
 			}
 
-			for (it=(pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
+			for (auto it=(pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
 			{
 				for (int i =0; i<3; i++)
 				{
@@ -1181,7 +1208,7 @@ void projection_Tij_project(Particles<part, part_info, part_dataType> * pcls, Fi
 	Site xPart(pcls->lattice());
 	Site xTij(Tij->lattice());
 	
-	typename std::list<part>::iterator it;
+//	typename std::list<part>::iterator it;
 	
 	Real referPos[3];
 	Real weightScalarGridDown[3];
@@ -1204,7 +1231,7 @@ void projection_Tij_project(Particles<part, part_info, part_dataType> * pcls, Fi
 
 	for (xPart.first(),xTij.first(); xPart.test(); xPart.next(),xTij.next())
 	{
-		if (pcls->field()(xPart).size != 0)
+		if (!pcls->field()(xPart).parts.empty())
 		{
 			for (int i=0;i<3;i++)
 				referPos[i] = (double)xPart.coord(i)*dx;
@@ -1224,7 +1251,7 @@ void projection_Tij_project(Particles<part, part_info, part_dataType> * pcls, Fi
 				localCubePhi[7] = (*phi)(xTij+0+1+2);
 			}
 			
-			for (it=(pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
+			for (auto it=(pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
 			{
 				for (int i =0; i<3; i++)
 				{
@@ -1334,7 +1361,7 @@ void projection_Ti0_project(Particles<part, part_info, part_dataType> * pcls, Fi
 	Site xPart(pcls->lattice());
 	Site xField(Ti0->lattice());
 
-	typename std::list<part>::iterator it;
+//	typename std::list<part>::iterator it;
 
 	Real referPos[3];
 	Real weightScalarGridUp[3];
@@ -1358,7 +1385,7 @@ void projection_Ti0_project(Particles<part, part_info, part_dataType> * pcls, Fi
 
 	for (xPart.first(), xField.first(); xPart.test(); xPart.next(), xField.next())
 	{
-		if (pcls->field()(xPart).size != 0)
+		if (!pcls->field()(xPart).parts.empty())
 		{
 			for(int i = 0; i < 3; i++) referPos[i] = xPart.coord(i)*dx;
 			for(int i = 0; i < 24; i++) localCube[i] = 0.0;
@@ -1386,7 +1413,7 @@ void projection_Ti0_project(Particles<part, part_info, part_dataType> * pcls, Fi
 				localCubeChi[7] = (*chi)(xField+0+1+2);
 			}
 
-			for (it = (pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
+			for (auto it = (pcls->field())(xPart).parts.begin(); it != (pcls->field())(xPart).parts.end(); ++it)
 			{
 				for (int i = 0; i < 3; i++)
 				{
