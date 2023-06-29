@@ -1,7 +1,7 @@
 # programming environment
 COMPILER     := mpigxx
-INCLUDE      := -I ../LATfield2/
-LIB          := -lfftw3 -lm -lhdf5 -lgsl -lgslcblas
+INCLUDE      := -I../LATfield2 -I../class_public/include -I../class_public/external/HyRec2020 -I../class_public/external/RecfastCLASS -I../class_public/external/heating
+LIB          := -lfftw3 -lm -lhdf5 -lgsl -lgslcblas -L../class_public -lclass
 HPXCXXLIB    := -lhealpix_cxx -lcfitsio
 
 # target and source
@@ -24,11 +24,11 @@ DGEVOLUTION  += -DEXACT_OUTPUT_REDSHIFTS
 #DGEVOLUTION  += -DVELOCITY      # enables velocity field utilities
 #DGEVOLUTION  += -DCOLORTERMINAL
 #DGEVOLUTION  += -DCHECK_B
-#DGEVOLUTION  += -DHAVE_CLASS    # requires LIB -lclass
+DGEVOLUTION  += -DHAVE_CLASS    # requires LIB -lclass
 #DGEVOLUTION  += -DHAVE_HEALPIX  # requires LIB -lchealpix
 
 # further compiler options
-OPT          := -O3 -std=c++11
+OPT          := -O3 -std=c++11 -fopenmp
 
 $(EXEC): $(SOURCE) $(HEADERS) makefile
 	$(COMPILER) $< -o $@ $(OPT) $(DLATFIELD2) $(DGEVOLUTION) $(INCLUDE) $(LIB)
